@@ -28,16 +28,39 @@ var objs = {
     clock: null,
     plane: null,
     selection: null,
-    offset: new THREE.Vector3(),
+    offset: new THREE.Vector3,
     objects: [],
+    mouse_position: new THREE.Vector3,
+    v3: new THREE.Vector3,
     raycaster: new THREE.Raycaster(),
+    render_stats: null,
+    physics_stats: null,
 
     init: function() {
 
+        
         // Create main scene
-        this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(0xcce0ff, 0.0003);
+        this.scene = new Physijs.Scene({ fixedTimeStep: 1 / 120 });
+        this.scene.setGravity(new THREE.Vector3( 0, -30, 0 ));
+        this.scene.addEventListener(
+            'update',
+            function() {
+                if ( this.selection !== null ) 
+                {
+                    this.v3.copy( this.mouse_position ).add( this.offset ).sub( this.selection.position ).multiplyScalar( 5 );
+                    this.v3.y = 0;
+                    this.selection.setLinearVelocity( this.v3 );
 
+                    // Reactivate all of the blocks
+                    this.v3.set( 0, 0, 0 );
+                    for ( var i = 0; i < this.objects.length; i++ ) 
+                    {
+                        this.objects[i].applyCentralImpulse( this.v3 );
+                    }
+                }
+                this.scene.simulate( undefined, 1 );
+            }
+        );
         var SCREEN_WIDTH = window.innerWidth,
             SCREEN_HEIGHT = window.innerHeight;
 
@@ -54,7 +77,8 @@ var objs = {
         // Prepare webgl renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
-        this.renderer.setClearColor(this.scene.fog.color);
+        // this.renderer.shadowMap.enabled = true;
+        // this.renderer.shadowMapSoft = true;
 
         // Prepare container
         this.container = document.createElement('div');
@@ -87,9 +111,12 @@ var objs = {
         this.addSkybox();
 
         // Plane, that helps to determinate an intersection position
-        this.plane = new THREE.Mesh(new THREE.PlaneBufferGeometry(500, 500, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-        this.plane.visible = false;
-        this.scene.add(this.plane);
+       this.plane = new THREE.Mesh(
+			new THREE.PlaneGeometry( 150, 150 ),
+			new THREE.MeshBasicMaterial({ opacity: 0, transparent: true })
+		);
+		this.plane.rotation.x = Math.PI / -2;
+		this.scene.add( this.plane );
 
         // Add table
         var loader;
@@ -168,6 +195,8 @@ var objs = {
                 this.objects.push(block);
             }
         }
+        this.scene.simulate();
+        
     },
     addSkybox: function() {
         var iSBrsize = 500;
@@ -183,7 +212,8 @@ var objs = {
         skyMesh = new THREE.Mesh(skyGeo, skyMat);
         this.scene.add(skyMesh);
     },
-    onDocumentMouseDown: function(event) {
+    onDocumentMouseDown: function(event) 
+    {
         // Get mouse position
         var mouseX = (event.clientX / window.innerWidth) * 2 - 1;
         var mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -205,15 +235,23 @@ var objs = {
             // Set the selection - first intersected object
             objs.selection = intersects[0].object;
 
-            // Calculate the offset
-            var intersects = objs.raycaster.intersectObject(objs.plane);
-            objs.offset.copy(intersects[0].point).sub(objs.plane.position);
+            vector.set( 0, 0, 0 );
+            objs.selection.setAngularFactor( vector );
+			objs.selection.setAngularVelocity( vector );
+			objs.selection.setLinearFactor( vector );
+			objs.selection.setLinearVelocity( vector );
+
+            objs.mouse_position.copy( intersects[0].point );
+            objs.offset.subVectors( objs.selection.position, objs.mouse_position );
+            objs.plane.position.y = objs.mouse_position.y;
         }
     },
-    onDocumentMouseMove: function(event) {
+    onDocumentMouseMove: function(event) 
+    {
         event.preventDefault();
+        
 
-        // Get mouse position
+           // Get mouse position
         var mouseX = (event.clientX / window.innerWidth) * 2 - 1;
         var mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
 
@@ -237,11 +275,20 @@ var objs = {
                 objs.plane.lookAt(objs.camera.position);
             }
         }
+            
+        
     },
     onDocumentMouseUp: function(event) {
-        // Enable the controls
-        objs.controls.enabled = true;
-        objs.selection = null;
+        
+        var vector = new THREE.Vector3();
+
+        if ( objs.selection !== null ) {
+            vector.set(1, 1, 1);
+            objs.selection.setAngularFactor( vector );
+            objs.selection.setLinearFactor( vector );
+            objs.controls.enabled = true;
+            objs.selection = null;
+        }
     },
     onDocumentMouseWheel: function(event) {
         var fovMAX = 160;

@@ -33,8 +33,6 @@ var objs = {
     mouse_position: new THREE.Vector3,
     v3: new THREE.Vector3,
     raycaster: new THREE.Raycaster(),
-    render_stats: null,
-    physics_stats: null,
 
     init: function() {
 

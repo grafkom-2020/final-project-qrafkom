@@ -31,12 +31,30 @@ var objs = {
     offset: new THREE.Vector3(),
     objects: [],
     raycaster: new THREE.Raycaster(),
+    mouse_position: new THREE.Vector3(),
+    v3: new THREE.Vector3(),
 
     init: function() {
 
         // Create main scene
-        this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(0xcce0ff, 0.0003);
+        this.scene = new Physijs.Scene({fixedTimeStep:1/120});
+        this.scene.setGravity(new THREE.Vector3(0, -30, 0));
+        this.scene.addEventListener(
+            'update',
+            function(){
+                if(this.selection !== null){
+                    this.v3.copy(this.mouse_position).add(this.offset).sub(this.selection.position).multiplyScalar(5);
+                    this.v3.y = 0;
+                    this.selection.setLinearVelocity(this.v3);
+                    this.v3.set(0, 0, 0);
+                    for(var i = 0; i < this.objects.length; i++){
+                        this.objects[i].applyCentralImpulse(this.v3);
+                    }
+                }
+
+                this.scene.simulate(undefined, 1);
+            }
+        );
 
         var SCREEN_WIDTH = window.innerWidth,
             SCREEN_HEIGHT = window.innerHeight;
@@ -54,7 +72,8 @@ var objs = {
         // Prepare webgl renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
-        this.renderer.setClearColor(this.scene.fog.color);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMapSoft = true;
 
         // Prepare container
         this.container = document.createElement('div');
@@ -87,8 +106,11 @@ var objs = {
         this.addSkybox();
 
         // Plane, that helps to determinate an intersection position
-        this.plane = new THREE.Mesh(new THREE.PlaneBufferGeometry(500, 500, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-        this.plane.visible = false;
+        this.plane = new THREE.Mesh(
+            new THREE.PlaneGeometry(150, 150),
+            new THREE.MeshBasicMaterial({ opacity: 0, transparent: true }));
+        this.plane.rotation.x = Math.PI / -2;
+        // this.plane.visible = false;
         this.scene.add(this.plane);
 
         // Add table
@@ -103,10 +125,8 @@ var objs = {
             .9, // high friction
             .2 // low restitution
         );
-        // table_material.map.wrapS = table_material.map.wrapT = THREE.RepeatWrapping;
-        // table_material.map.repeat.set(5, 5);
+        
         var table;
-
         table = new Physijs.BoxMesh(
             new THREE.BoxGeometry(50, 1, 50),
             table_material,
@@ -136,6 +156,7 @@ var objs = {
             ranNums.push(nums[l]);
             nums.splice(l, 1);
         }
+
         var m;
         m = 0;
         for (i = 0; i < rows; i++) {
@@ -204,10 +225,15 @@ var objs = {
 
             // Set the selection - first intersected object
             objs.selection = intersects[0].object;
+            vector.set(0, 0, 0);
+            objs.selection.setAngularFactor(vector);
+            objs.selection.setAngularVelocity(vector);
+            objs.selection.setLinearFactor(vector);
+            objs.selection.setLinearVelocity(vector);
 
-            // Calculate the offset
-            var intersects = objs.raycaster.intersectObject(objs.plane);
-            objs.offset.copy(intersects[0].point).sub(objs.plane.position);
+            objs.mouse_position.copy(intersects[0].point);
+            objs.offset.subVectors(objs.selection.position, objs.mouse_position);
+            objs.plane.position.y = objs.mouse_position.y;
         }
     },
     onDocumentMouseMove: function(event) {
@@ -240,8 +266,16 @@ var objs = {
     },
     onDocumentMouseUp: function(event) {
         // Enable the controls
-        objs.controls.enabled = true;
-        objs.selection = null;
+        var vector = new THREE.Vector3();
+        
+        if(objs.selection !== null){
+            vector.set(1, 1, 1);
+            objs.selection.setAngularFactor(vector);
+            objs.selection.setLinearFactor(vector);
+            objs.controls.enabled = true;
+            objs.selection = null;
+        }
+        
     },
     onDocumentMouseWheel: function(event) {
         var fovMAX = 160;
@@ -250,7 +284,7 @@ var objs = {
         objs.camera.fov -= event.wheelDeltaY * 0.05;
         objs.camera.fov = Math.max( Math.min( camera.fov, fovMAX ), fovMIN );
         objs.camera.projectionMatrix = new THREE.Matrix4().makePerspective(camera.fov, window.innerWidth / window.innerHeight, camera.near, camera.far);
-    }
+    },
 };
 
 // Animate the scene

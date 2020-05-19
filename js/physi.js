@@ -31,6 +31,8 @@ window.Physijs = (function() {
 		CONSTRAINTREPORT_ITEMSIZE = 6;
 
 	Physijs.scripts = {};
+	Physijs.scripts.worker = 'physijs_worker.js';
+    Physijs.scripts.ammo = 'ammo.js';
 
 	Eventable = function() {
 		this._eventListeners = {};
@@ -486,7 +488,7 @@ window.Physijs = (function() {
 
 
 		params = params || {};
-		params.ammo = Physijs.scripts.ammo || 'ammo.js';
+		params.ammo = Physijs.scripts.ammo || './ammo.js';
 		params.fixedTimeStep = params.fixedTimeStep || 1 / 60;
 		params.rateLimit = params.rateLimit || true;
 		this.execute( 'init', params );

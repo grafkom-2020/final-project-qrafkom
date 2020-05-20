@@ -1,10 +1,10 @@
 Physijs.scripts.worker = 'js/physijs_worker.js';
 Physijs.scripts.ammo = 'ammo.js';
 
-var scene, render, renderer, camera,
+var scene, render, renderer, camera, controls,
     table, table_material, intersect_plane,
     blocks = [], block_material, selected_block = null,
-    block_offset = new THREE.Vector3, v3 = new THREE.Vector3;
+    block_offset = new THREE.Vector3, v3 = new THREE.Vector3, initEventHandling;
 
 initScene = function () {
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -39,12 +39,28 @@ initScene = function () {
 	camera.lookAt(new THREE.Vector3( 0, 0, 0 ));
     scene.add(camera);
     
-	THREEx.WindowResize(renderer, camera);
+    THREEx.WindowResize(renderer, camera);
+    
+    controls = new THREE.OrbitControls(camera);
+	controls.target = new THREE.Vector3(0, 0, 0);
+	controls.maxDistance = 150;
 	
 	var ambientLight = new THREE.AmbientLight( 0x444444 );
 	scene.add( ambientLight );
 
-	var directionalLight = new THREE.DirectionalLight( 0xffffff, 0.5 );
+    var directionalLight = new THREE.DirectionalLight( 0xffffff, 0.5 );
+    directionalLight.position.set(20,25,-5);
+    directionalLight.target.position.copy(scene.position);
+    directionalLight.castShadow = true;
+    directionalLight.shadowMapWidth = directionalLight.shadowMapHeight = 2048;
+    directionalLight.shadowDarkness = .7;
+    directionalLight.shadowCameraLeft = -25;
+	directionalLight.shadowCameraTop = -25;
+	directionalLight.shadowCameraRight = 25;
+	directionalLight.shadowCameraBottom = 25;
+	directionalLight.shadowCameraNear = 20;
+	directionalLight.shadowCameraFar = 150;
+	directionalLight.shadowBias = -.0001;
 	scene.add( directionalLight );
 
     // Add table
@@ -139,11 +155,40 @@ initScene = function () {
 	
     intersect_plane.rotation.x = Math.PI / -2;
     scene.add(intersect_plane);
-
+    initEventHandling();
     requestAnimationFrame(render);
     scene.simulate();
 };
 
+initEventHandling = (function() 
+{
+    var vector = new THREE.Vector3, mouseUp, mouseWheel;
+    mouseUp = function( evt ) 
+    {
+        if ( selected_block !== null ) 
+        {
+			vector.set( 1, 1, 1 );
+			selected_block.setAngularFactor( vector );
+			selected_block.setLinearFactor( vector );
+			controls.enabled = true;
+			selected_block = null;
+		}
+    };
+    
+    mouseWheel = function( evt )
+    {
+		var fovMAX = 160;
+		var fovMIN = 1;
+		camera.fov -= event.wheelDeltaY * 0.05;
+		camera.fov = Math.max( Math.min(  camera.fov, fovMAX ), fovMIN );
+		camera.projectionMatrix = new THREE.Matrix4().makePerspective( camera.fov, window.innerWidth / window.innerHeight, camera.near, camera.far);
+    };
+    
+    return function() {
+		renderer.domElement.addEventListener( 'mouseup', mouseUp );
+		renderer.domElement.addEventListener( 'mousewheel', mouseWheel );
+	};
+})();
 render = function () {
     requestAnimationFrame(render);
     renderer.render(scene, camera);
